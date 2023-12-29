@@ -99,7 +99,7 @@ class DeltaMessage(BaseModel):
 class ChatCompletionRequest(BaseModel):
     model: str
     messages: List[ChatMessage]
-    temperature: Optional[float] = 0.8
+    temperature: Optional[float] = 0.3
     top_p: Optional[float] = 0.8
     max_tokens: Optional[int] = None
     stream: Optional[bool] = False
@@ -260,7 +260,7 @@ async def predict(model_id: str, params: dict):
         finish_reason=None
     )
     chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
-    yield "{}".format(chunk.model_dump_json(exclude_unset=True))
+    yield "{}".format(chunk.model_dump_json(exclude_unset=True, exclude_none=True))
 
     previous_text = ""
     for new_response in generate_stream_chatglm3(model, tokenizer, params):
@@ -295,7 +295,7 @@ async def predict(model_id: str, params: dict):
             finish_reason=finish_reason
         )
         chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
-        yield "{}".format(chunk.model_dump_json(exclude_unset=True))
+        yield "{}".format(chunk.model_dump_json(exclude_unset=True, exclude_none=True))
 
     choice_data = ChatCompletionResponseStreamChoice(
         index=0,
@@ -303,7 +303,7 @@ async def predict(model_id: str, params: dict):
         finish_reason="stop"
     )
     chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
-    yield "{}".format(chunk.model_dump_json(exclude_unset=True))
+    yield "{}".format(chunk.model_dump_json(exclude_unset=True, exclude_none=True))
     yield '[DONE]'
 
 
@@ -329,12 +329,13 @@ def predict_stream(model_id, gen_params):
 
         # When it is not a function call and the character length is> 7,
         # try to judge whether it is a function call according to the special function prefix
-        if not is_function_call and len(output) > 7:
+        if not is_function_call:
 
-            # Determine whether a function is called
-            is_function_call = contains_custom_function(output)
-            if is_function_call:
-                continue
+            if len(output) > 7:
+                # Determine whether a function is called
+                is_function_call = contains_custom_function(output)
+                if is_function_call:
+                    continue
 
             # Non-function call, direct stream output
             finish_reason = new_response["finish_reason"]
@@ -352,7 +353,7 @@ def predict_stream(model_id, gen_params):
                     finish_reason=finish_reason
                 )
                 chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
-                yield "{}".format(chunk.model_dump_json(exclude_unset=True))
+                yield "{}".format(chunk.model_dump_json(exclude_unset=True, exclude_none=True))
 
             send_msg = delta_text if has_send_first_chunk else output
             has_send_first_chunk = True
@@ -367,7 +368,7 @@ def predict_stream(model_id, gen_params):
                 finish_reason=finish_reason
             )
             chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
-            yield "{}".format(chunk.model_dump_json(exclude_unset=True))
+            yield "{}".format(chunk.model_dump_json(exclude_unset=True, exclude_none=True))
 
     if is_function_call:
         yield output
@@ -389,7 +390,7 @@ async def parse_output_text(model_id: str, value: str):
         finish_reason=None
     )
     chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
-    yield "{}".format(chunk.model_dump_json(exclude_unset=True))
+    yield "{}".format(chunk.model_dump_json(exclude_unset=True, exclude_none=True))
 
     choice_data = ChatCompletionResponseStreamChoice(
         index=0,
@@ -397,7 +398,7 @@ async def parse_output_text(model_id: str, value: str):
         finish_reason="stop"
     )
     chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
-    yield "{}".format(chunk.model_dump_json(exclude_unset=True))
+    yield "{}".format(chunk.model_dump_json(exclude_unset=True, exclude_none=True))
     yield '[DONE]'
 
 
@@ -417,6 +418,7 @@ def contains_custom_function(value: str) -> bool:
 
 if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_PATH, trust_remote_code=True)
-    model = AutoModel.from_pretrained(MODEL_PATH, trust_remote_code=True, device_map="auto").eval()
+    #model = AutoModel.from_pretrained(MODEL_PATH, trust_remote_code=True).cuda().eval()
+    model = AutoModel.from_pretrained(MODEL_PATH, trust_remote_code=True).float().eval()
 
     uvicorn.run(app, host='0.0.0.0', port=8000, workers=1)
