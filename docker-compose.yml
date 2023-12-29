@@ -1,0 +1,13 @@
+version: '3.1'
+services:
+  chatglm:
+    image: chatglm3-runtime:latest
+    restart: always
+    environment:
+      MODEL_PATH: "/app/ChatGLM3-6B-Models/"
+    volumes:
+        - ./:/app 
+    ports:
+      - 8000:8000
+    command: python /app/openai_api_demo/openai_api.py
+
